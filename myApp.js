@@ -1,9 +1,5 @@
 require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-
-const app = express();
 
 // ------------------- MONGOOSE -------------------
 mongoose.connect(process.env.MONGO_URI, {
@@ -13,64 +9,115 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB conectado'))
 .catch(err => console.log('Error de conexión a MongoDB:', err));
 
-// ------------------- MIDDLEWARE -------------------
+// ------------------- MODELO -------------------
+const Schema = mongoose.Schema;
 
-// Logger middleware de nivel raíz
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - ${req.ip}`);
-  next();
+const personSchema = new Schema({
+  name: { type: String, required: true },
+  age: Number,
+  favoriteFoods: [String]
 });
 
-// Servir archivos estáticos
-app.use('/public', express.static(__dirname + '/public'));
+const Person = mongoose.model('Person', personSchema);
 
-// Analizar bodies de solicitudes POST
-app.use(bodyParser.urlencoded({ extended: false }));
-
-// ------------------- RUTAS -------------------
-
-// Ruta principal
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/views/index.html');
-});
-
-// Ruta /json
-app.get('/json', (req, res) => {
-  let message = "Hello json";
-  if (process.env.MESSAGE_STYLE === "uppercase") {
-    message = message.toUpperCase();
-  }
-  res.json({ message });
-});
-
-// Middleware en cadena para /now
-app.get('/now', (req, res, next) => {
-  req.time = new Date().toString();
-  next();
-}, (req, res) => {
-  res.json({ time: req.time });
-});
-
-// Ruta de eco con parámetros de ruta
-app.get('/:word/echo', (req, res) => {
-  res.json({ echo: req.params.word });
-});
-
-// Ruta /name con parámetros de consulta
-app.route('/name')
-  .get((req, res) => {
-    const { first, last } = req.query;
-    res.json({ name: `${first} ${last}` });
-  })
-  .post((req, res) => {
-    const { first, last } = req.body;
-    res.json({ name: `${first} ${last}` });
+// ------------------- FUNCIONES -------------------
+const createAndSavePerson = (done) => {
+  const jane = new Person({ name: "Jane Doe", age: 25, favoriteFoods: ["pizza"] });
+  jane.save((err, data) => {
+    if(err) return done(err);
+    done(null, data);
   });
+};
 
-// Puerto
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
+const createManyPeople = (arrayOfPeople, done) => {
+  Person.create(arrayOfPeople, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
 
-module.exports = app;
+const findPeopleByName = (personName, done) => {
+  Person.find({ name: personName }, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
+
+const findOneByFood = (food, done) => {
+  Person.findOne({ favoriteFoods: food }, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
+
+const findPersonById = (personId, done) => {
+  Person.findById(personId, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
+
+const findEditThenSave = (personId, done) => {
+  const foodToAdd = "hamburger";
+  Person.findById(personId, (err, person) => {
+    if(err) return done(err);
+    person.favoriteFoods.push(foodToAdd);
+    person.save((err, updatedPerson) => {
+      if(err) return done(err);
+      done(null, updatedPerson);
+    });
+  });
+};
+
+const findAndUpdate = (personName, done) => {
+  const ageToSet = 20;
+  Person.findOneAndUpdate(
+    { name: personName },
+    { age: ageToSet },
+    { new: true },
+    (err, updatedDoc) => {
+      if(err) return done(err);
+      done(null, updatedDoc);
+    }
+  );
+};
+
+const removeById = (personId, done) => {
+  Person.findByIdAndRemove(personId, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
+
+const removeManyPeople = (done) => {
+  const nameToRemove = "Mary";
+  Person.deleteMany({ name: nameToRemove }, (err, data) => {
+    if(err) return done(err);
+    done(null, data);
+  });
+};
+
+const queryChain = (done) => {
+  const foodToSearch = "burrito";
+  Person.find({ favoriteFoods: foodToSearch })
+    .sort({ name: 1 })
+    .limit(2)
+    .select({ name: 1, favoriteFoods: 1 })
+    .exec((err, data) => {
+      if(err) return done(err);
+      done(null, data);
+    });
+};
+
+// ------------------- EXPORTS -------------------
+module.exports.PersonModel = Person;
+module.exports.createAndSavePerson = createAndSavePerson;
+module.exports.createManyPeople = createManyPeople;
+module.exports.findPeopleByName = findPeopleByName;
+module.exports.findOneByFood = findOneByFood;
+module.exports.findPersonById = findPersonById;
+module.exports.findEditThenSave = findEditThenSave;
+module.exports.findAndUpdate = findAndUpdate;
+module.exports.removeById = removeById;
+module.exports.removeManyPeople = removeManyPeople;
+module.exports.queryChain = queryChain;

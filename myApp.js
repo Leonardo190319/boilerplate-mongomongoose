@@ -1,26 +1,41 @@
 require('dotenv').config();
-const mongoose = require('mongoose'); // Importar mongoose
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 
-// Conexión a MongoDB
+const app = express();
+
+// ------------------- MONGOOSE -------------------
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB conectado correctamente'))
-.catch(err => console.error('Error de conexión a MongoDB:', err));
+.then(() => console.log('MongoDB conectado'))
+.catch(err => console.log('Error de conexión a MongoDB:', err));
 
-// Tu código Express
-const express = require('express');
-const app = express();
+// ------------------- MIDDLEWARE -------------------
 
-// Middleware y rutas
-app.use("/public", express.static(__dirname + "/public"));
-
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/views/index.html");
+// Logger middleware de nivel raíz
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - ${req.ip}`);
+  next();
 });
 
-app.get("/json", (req, res) => {
+// Servir archivos estáticos
+app.use('/public', express.static(__dirname + '/public'));
+
+// Analizar bodies de solicitudes POST
+app.use(bodyParser.urlencoded({ extended: false }));
+
+// ------------------- RUTAS -------------------
+
+// Ruta principal
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html');
+});
+
+// Ruta /json
+app.get('/json', (req, res) => {
   let message = "Hello json";
   if (process.env.MESSAGE_STYLE === "uppercase") {
     message = message.toUpperCase();
@@ -28,6 +43,34 @@ app.get("/json", (req, res) => {
   res.json({ message });
 });
 
+// Middleware en cadena para /now
+app.get('/now', (req, res, next) => {
+  req.time = new Date().toString();
+  next();
+}, (req, res) => {
+  res.json({ time: req.time });
+});
+
+// Ruta de eco con parámetros de ruta
+app.get('/:word/echo', (req, res) => {
+  res.json({ echo: req.params.word });
+});
+
+// Ruta /name con parámetros de consulta
+app.route('/name')
+  .get((req, res) => {
+    const { first, last } = req.query;
+    res.json({ name: `${first} ${last}` });
+  })
+  .post((req, res) => {
+    const { first, last } = req.body;
+    res.json({ name: `${first} ${last}` });
+  });
+
+// Puerto
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
+
 module.exports = app;
-
-
